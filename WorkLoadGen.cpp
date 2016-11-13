@@ -1,0 +1,155 @@
+#include "Headers.h"
+
+
+class ClientSocket{
+			public:
+			int sockfd;
+            /* connector’s address information */
+			struct sockaddr_in their_addr;
+			struct hostent *he;
+			int numbytes,addr_len;
+		    char buffer[10000];
+
+		    ClientSocket(){
+		    	string ip ="localhost";
+				if ((he = gethostbyname(ip.c_str())) == NULL) {
+					cout<<"Client-gethostbyname() error"<<endl;;
+					exit(1);
+				}
+				else {	
+						cout<<"Client-gethostname() is OK"<<endl;
+				}
+				if((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+					cout<<"Client-socket() error lol!"<<endl;
+					exit(1);
+				}
+				else {
+					cout<<"Client-socket() sockfd is OK..."<<endl;			/* host byte order */
+				}
+
+				their_addr.sin_family = AF_INET;							/* short, network byte order */
+				addr_len = sizeof(struct sockaddr);
+				cout<<"Using port: 4001"<<endl;
+				their_addr.sin_port = htons(4001);
+				their_addr.sin_addr = *((struct in_addr *)he->h_addr);       /* zero the rest of the struct */
+				memset(&(their_addr.sin_zero), '\0', 8);
+
+			}
+			void send_request(string str){
+
+				strcpy(buffer, str.c_str());
+				printf("\nsending --> %s",buffer);
+				if((numbytes = sendto(sockfd, buffer, strlen(buffer), 0, 
+				 	(struct sockaddr *)&their_addr, sizeof(struct sockaddr))) == -1) {
+					cout<<"Client-sendto() error !"<<endl;
+					exit(1);
+				}
+				else {
+					numbytes=recvfrom(sockfd, buffer, strlen(buffer), 0, 
+					(struct sockaddr *)&their_addr, (socklen_t*)&addr_len);
+
+					string result="";	    		
+		    		buffer[numbytes] = '\0';
+					result=result+string(buffer);
+
+					cout<<"Response is..."<<result<<endl;
+				cout<<"sent "<<numbytes<<" bytes to "<<inet_ntoa(their_addr.sin_addr)<<endl;
+				
+				}
+
+
+			}
+			~ClientSocket(){
+		
+			/* Closing UDP socket */
+
+				if (close(sockfd) != 0)
+					cout<<"Client-sockfd closing is failed!"<<endl;
+				else
+					cout<<"Client-sockfd successfully closed!"<<endl;
+			}
+
+
+};
+
+class workload{
+	int blob_id_count;
+	int number_of_requests ; 
+	unordered_map<int,int> data;
+	public:
+	workload(){
+		blob_id_count =1 ;
+		number_of_requests = 10;
+	}
+	void generation(ClientSocket &c);
+	void writeload(int _blob_id_count,int _value,ClientSocket &c);
+	void readload(int _blob_id_count,ClientSocket &c);
+};
+void workload::generation(ClientSocket &c){
+ 
+ 	int i=1;
+
+ 	writeload(blob_id_count++,rand()%200,c);
+ 	writeload(blob_id_count++,rand()%200,c);
+ 	while(i<number_of_requests){
+
+ 		if( i%3 == 0){
+ 			writeload(blob_id_count++,rand()%200,c);
+ 		} else {
+ 			readload( (rand()%(blob_id_count-1)) + 1,c);
+ 		}
+ 		i++;
+ 	}
+}
+unsigned long long time_gap(struct timeval tv){
+
+	unsigned long long millisecondsSinceEpoch =
+    (unsigned long long)(tv.tv_sec) * 1000 +
+    (unsigned long long)(tv.tv_usec) / 1000;
+
+    struct timeval ct;
+    gettimeofday(&ct, NULL);
+
+
+
+    unsigned long long diff = (unsigned long long)(ct.tv_sec) * 1000 +
+    (unsigned long long)(ct.tv_usec) / 1000   - millisecondsSinceEpoch;
+
+    return diff;
+}
+void workload::writeload(int _blob_id_count,int _value,ClientSocket &c){
+    data[_blob_id_count]=_value;
+	
+	struct timeval ct;
+    gettimeofday(&ct, NULL);
+    //sleep(1);
+    string str="";
+    str = "WR#" + to_string(_blob_id_count) +"#"+ to_string(_value);
+    
+    c.send_request(str);
+    cout<<"\n The write value of blob: "<<_blob_id_count<<" is : "<<_value<<" in "<<time_gap(ct)<<" ms";
+
+}
+
+void workload::readload(int _blob_id_count,ClientSocket &c){
+	
+	struct timeval ct;
+    gettimeofday(&ct, NULL);
+
+    string str="";
+    str = "RD#" + to_string(_blob_id_count);
+	c.send_request(str);
+	cout<<"\nThe read value of blob: "<<_blob_id_count<<" is : "<<data[_blob_id_count]<<" in "<<time_gap(ct)<<" ms";
+}
+
+int main(){
+	sleep(1);
+	cout<<"WorkLoadGen started \n";
+	/* Starting Client Socket to send read/write Requests*/
+	ClientSocket c;
+
+	workload w;
+	w.generation(c);
+
+    return 0;
+}
