@@ -1,5 +1,19 @@
 #include "Headers.h"
+string _local_config_read(string config_var){
+    
+    string result="";
+    ifstream file("config.txt");
+    string line;
 
+    while (file && getline(file, line)){
+        std::vector<string> v=splitString(line,"=");
+        if(v.size()>0 && v[0]==config_var){
+            return v[1];
+        }
+
+    }
+    return result;
+}
 
 class ClientSocket{
 			public:
@@ -10,8 +24,7 @@ class ClientSocket{
 			int numbytes,addr_len;
 		    char buffer[10000];
 
-		    ClientSocket(){
-		    	string ip ="localhost";
+		    ClientSocket(int port,string ip){
 				if ((he = gethostbyname(ip.c_str())) == NULL) {
 					cout<<"Client-gethostbyname() error"<<endl;;
 					exit(1);
@@ -30,7 +43,7 @@ class ClientSocket{
 				their_addr.sin_family = AF_INET;							/* short, network byte order */
 				addr_len = sizeof(struct sockaddr);
 				cout<<"Using port: 4001"<<endl;
-				their_addr.sin_port = htons(4001);
+				their_addr.sin_port = htons(port);
 				their_addr.sin_addr = *((struct in_addr *)he->h_addr);       /* zero the rest of the struct */
 				memset(&(their_addr.sin_zero), '\0', 8);
 
@@ -75,11 +88,13 @@ class ClientSocket{
 class workload{
 	int blob_id_count;
 	int number_of_requests ; 
+	int readWriteRatio;
 	unordered_map<int,int> data;
 	public:
 	workload(){
 		blob_id_count =1 ;
-		number_of_requests = 10;
+		number_of_requests = stoi(_local_config_read("NumberOfRequests"));
+		readWriteRatio = stoi(_local_config_read("ReadWriteRatio"));
 	}
 	void generation(ClientSocket &c);
 	void writeload(int _blob_id_count,int _value,ClientSocket &c);
@@ -93,7 +108,7 @@ void workload::generation(ClientSocket &c){
  	writeload(blob_id_count++,rand()%200,c);
  	while(i<number_of_requests){
 
- 		if( i%3 == 0){
+ 		if( i % readWriteRatio == 0){
  			writeload(blob_id_count++,rand()%200,c);
  		} else {
  			readload( (rand()%(blob_id_count-1)) + 1,c);
@@ -146,7 +161,17 @@ int main(){
 	sleep(1);
 	cout<<"WorkLoadGen started \n";
 	/* Starting Client Socket to send read/write Requests*/
-	ClientSocket c;
+	
+	string _L1_port = _local_config_read("LAYER1_PORT");
+	string L1_ip    = _local_config_read("LAYER1_IP");
+
+
+	if(L1_ip.empty()|| _L1_port.empty()) {
+    	cout<<"Workload Gen config read Failed";
+    }
+
+    int L1_port=stoi(_L1_port);
+	ClientSocket c(L1_port, L1_ip);
 
 	workload w;
 	w.generation(c);
