@@ -54,18 +54,16 @@ vector<string> splitString(string input, string delimiter)
      return output;
  }
 string config_read(string config_var){
-    
+
     string result="";
     ifstream file("../config.txt");
     string line;
 
     while (file && getline(file, line)){
-
         std::vector<string> v=splitString(line,"=");
         if(v.size()>0 && v[0]==config_var){
             return v[1];
         }
-
     }
     return result;
 }
