@@ -97,24 +97,39 @@ class workload{
 		readWriteRatio = stoi(_local_config_read("ReadWriteRatio"));
 	}
 	void generation(ClientSocket &c);
-	void writeload(int _blob_id_count,int _value,ClientSocket &c);
-	void readload(int _blob_id_count,ClientSocket &c);
+	unsigned long long writeload(int _blob_id_count,int _value,ClientSocket &c);
+	unsigned long long readload(int _blob_id_count,ClientSocket &c);
 };
 void workload::generation(ClientSocket &c){
  
- 	int i=1;
+ 	int i=1,temp=0;
 
+    int num_reads=0,num_writes=0;
+    int max_read=0,max_write=0;
+    unsigned long long read_sum=0,write_sum=0;
+ 	
  	writeload(blob_id_count++,rand()%200,c);
  	writeload(blob_id_count++,rand()%200,c);
  	while(i<number_of_requests){
 
  		if( i % readWriteRatio == 0){
- 			writeload(blob_id_count++,rand()%200,c);
+ 			temp = writeload(blob_id_count++,rand()%200,c);
+ 			max_write = max(max_write,temp);
+ 			write_sum += temp;
+ 			num_writes++;
  		} else {
- 			readload( (rand()%(blob_id_count-1)) + 1,c);
+ 			
+ 			temp = readload( (rand()%(blob_id_count-1)) + 1,c);
+ 			max_read = max(max_read,temp);
+ 			read_sum  += temp;
+ 			num_reads++;
  		}
  		i++;
  	}
+ 	cout<<"\n The average read time for : " << num_reads << " request " << 
+ 	(float)read_sum/num_reads<<"..Max Read is"<<max_read;
+ 	cout<<"\n The average write time for : " << num_writes << " request " << 
+ 	(float)write_sum/num_writes<<"..Max Write is"<<max_write;
 }
 unsigned long long time_gap(struct timeval tv){
 
@@ -132,7 +147,7 @@ unsigned long long time_gap(struct timeval tv){
 
     return diff;
 }
-void workload::writeload(int _blob_id_count,int _value,ClientSocket &c){
+unsigned long long workload::writeload(int _blob_id_count,int _value,ClientSocket &c){
     data[_blob_id_count]=_value;
 	
 	struct timeval ct;
@@ -142,11 +157,12 @@ void workload::writeload(int _blob_id_count,int _value,ClientSocket &c){
     str = "WR#" + to_string(_blob_id_count) +"#"+ to_string(_value);
     
     c.send_request(str);
-    cout<<"\n The write value of blob: "<<_blob_id_count<<" is : "<<_value<<" in "<<time_gap(ct)<<" ms";
-
+	unsigned long long gap = time_gap(ct);
+    cout<<"\n The write value of blob: "<<_blob_id_count<<" is : "<<_value<<" in "<<gap<<" ms";
+    return gap;
 }
 
-void workload::readload(int _blob_id_count,ClientSocket &c){
+unsigned long long workload::readload(int _blob_id_count,ClientSocket &c){
 	
 	struct timeval ct;
     gettimeofday(&ct, NULL);
@@ -154,7 +170,9 @@ void workload::readload(int _blob_id_count,ClientSocket &c){
     string str="";
     str = "RD#" + to_string(_blob_id_count);
 	c.send_request(str);
-	cout<<"\nThe read value of blob: "<<_blob_id_count<<" is : "<<data[_blob_id_count]<<" in "<<time_gap(ct)<<" ms";
+	unsigned long long gap = time_gap(ct);
+	cout<<"\nThe read value of blob: "<<_blob_id_count<<" is : "<<data[_blob_id_count]<<" in "<<gap<<" ms";
+	return gap;
 }
 
 int main(){
